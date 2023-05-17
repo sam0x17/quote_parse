@@ -1,0 +1,9 @@
+[package]
+name = "quote_parse"
+version = "0.1.0"
+edition = "2021"
+authors = ["sam0x17"]
+description = "Automatically derive syn::parse::Parse using a quote-like helper macro"
+keywords = ["quote", "syn", "parse", "derive", "macro"]
+
+[dependencies]
