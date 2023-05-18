@@ -3,7 +3,7 @@ use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::quote;
 use syn::{
     parse::{Parse, ParseStream},
-    parse2, Ident, Result, Token,
+    parse2, Ident, Result, Token, Visibility,
 };
 
 #[proc_macro]
@@ -15,7 +15,7 @@ pub fn quote_parse(tokens: TokenStream) -> TokenStream {
 }
 
 /*
-quote_parse!(MyThing,
+quote_parse!(pub MyThing,
     struct $ident {
         $field1: ${type1 as TypePath},
         $field2: ${type2 as TypePath}
@@ -24,6 +24,7 @@ quote_parse!(MyThing,
 */
 
 struct QuoteParseArgs {
+    viz: Visibility,
     ident: Ident,
     _comma: Token![,],
     stream: TokenStream2,
@@ -32,6 +33,7 @@ struct QuoteParseArgs {
 impl Parse for QuoteParseArgs {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(QuoteParseArgs {
+            viz: input.parse()?,
             ident: input.parse()?,
             _comma: input.parse()?,
             stream: {
@@ -98,7 +100,7 @@ fn walk_token_stream(tokens: TokenStream2) -> Result<TokenStream2> {
 #[test]
 fn test_quote_parse_internal() {
     quote_parse_internal(quote! {
-        MyThing,
+        pub MyThing,
         struct Something {
             field1: u32,
             field2: u32,
