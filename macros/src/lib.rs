@@ -97,12 +97,12 @@ impl Parse for Walker {
                         let content;
                         braced!(content in input);
                         let ident = content.parse::<Ident>()?;
-                        content.parse::<Token![as]>()?;
+                        content.parse::<Token![:]>()?;
                         let typ = content.parse::<Type>()?;
                         print!(
-                            "typed var: {} as {}",
-                            typ.to_token_stream().to_string(),
+                            "typed var: {}: {}",
                             ident.to_string(),
+                            typ.to_token_stream().to_string(),
                         );
                         continue;
                     }
