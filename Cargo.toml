@@ -11,3 +11,4 @@ keywords = ["quote", "syn", "parse", "derive", "macro"]
 license = "MIT"
 
 [dependencies]
+quote_parse_macros = { version = "0.1.0", path = "macros" }

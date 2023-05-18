@@ -1,9 +1,12 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, Group, Literal, Punct, TokenStream as TokenStream2, TokenTree};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{
+    braced,
     parse::{Nothing, Parse, ParseStream},
-    parse2, Ident, Result, Token, Visibility,
+    parse2,
+    token::Brace,
+    Error, Ident, Result, Token, Type, Visibility,
 };
 
 #[proc_macro]
@@ -16,9 +19,9 @@ pub fn quote_parse(tokens: TokenStream) -> TokenStream {
 
 /*
 quote_parse!(MyThing,
-    struct $ident {
-        $field1: ${type1 as TypePath},
-        $field2: ${type2 as TypePath}
+    struct #ident {
+        #field1: #{type1 as TypePath},
+        #field2: #{type2 as TypePath}
     }
 );
 */
@@ -75,81 +78,61 @@ impl ToChar for Delimiter {
     }
 }
 
-enum TokenW {
-    Group(Delimiter, Group),
-    Ident(Ident),
-    Punct(char, Punct),
-    Lit(String, Literal),
-}
+struct Walker(TokenStream2);
 
-impl From<&TokenTree> for TokenW {
-    fn from(value: &TokenTree) -> Self {
-        match value {
-            TokenTree::Group(group) => TokenW::Group(group.delimiter(), group.clone()),
-            TokenTree::Ident(ident) => TokenW::Ident(ident.clone()),
-            TokenTree::Punct(punct) => TokenW::Punct(punct.as_char(), punct.clone()),
-            TokenTree::Literal(lit) => TokenW::Lit(lit.to_string(), lit.clone()),
+impl Parse for Walker {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut output: TokenStream2 = TokenStream2::new();
+        while !input.is_empty() {
+            let token = input.parse::<TokenTree>()?;
+            if let TokenTree::Punct(t) = &token {
+                if t.as_char() == '#' {
+                    if input.peek(Ident) {
+                        // #ident
+                        let ident = input.parse::<Ident>()?;
+                        print!("ident var: {}", ident.to_string());
+                        continue;
+                    } else if input.peek(Brace) {
+                        // #{Type as ident}
+                        let content;
+                        braced!(content in input);
+                        let typ = content.parse::<Type>()?;
+                        content.parse::<Token![as]>()?;
+                        let ident = content.parse::<Ident>()?;
+                        print!(
+                            "typed var: {} as {}",
+                            typ.to_token_stream().to_string(),
+                            ident.to_string(),
+                        );
+                        continue;
+                    }
+                }
+            }
+            match token {
+                TokenTree::Group(group) => {
+                    // TODO: process parens/brackets/etc
+                    print!("{}\n", group.delimiter().to_char(true));
+                    output.extend(walk_token_stream(group.stream()));
+                    print!("{}\n", group.delimiter().to_char(false));
+                }
+                TokenTree::Ident(ident) => print!("{} ", ident.to_string()),
+                TokenTree::Punct(punct) => match punct.as_char() {
+                    ';' => println!(";"),
+                    ',' => println!(","),
+                    _ => print!("{}", punct.as_char()),
+                },
+                TokenTree::Literal(lit) => print!("'{}'", lit.to_string()),
+            }
         }
-    }
-}
-
-impl TokenW {
-    fn from_opt(tt: Option<&TokenTree>) -> Option<TokenW> {
-        match tt {
-            Some(tt) => Some(TokenW::from(tt)),
-            None => None,
-        }
+        Ok(Walker(output))
     }
 }
 
 fn walk_token_stream(tokens: TokenStream2) -> Result<TokenStream2> {
-    let mut output: TokenStream2 = TokenStream2::new();
-    let mut tokens = tokens.into_iter().collect::<Vec<TokenTree>>();
-    tokens.reverse();
-    let mut i = 0;
-    while {
-        i += 1;
-        !tokens.is_empty()
-    } {
-        let token = tokens.pop();
-        let (peek1, peek2) = (
-            TokenW::from_opt(tokens.get(tokens.len() - 1 - 1)),
-            TokenW::from_opt(tokens.get(tokens.len() - 1 - 2)),
-        );
-        match (peek1, peek2) {
-            (Some(TokenW::Punct('$', _)), Some(TokenW::Ident(_))) => {
-                // $ident
-            }
-            (Some(TokenW::Punct('$', _)), Some(TokenW::Group(Delimiter::Brace, _))) => {
-                // ${ident}
-            }
-            (_, _) => (),
-        }
+    match parse2::<Walker>(tokens) {
+        Ok(walker) => Ok(walker.0),
+        Err(err) => Err(err),
     }
-    for (i, token) in tokens.iter().enumerate() {
-        let (peek1, peek2, peek3, peek4) = (
-            tokens.get(i + 1),
-            tokens.get(i + 2),
-            tokens.get(i + 3),
-            tokens.get(i + 4),
-        );
-        match token {
-            TokenTree::Group(group) => {
-                // TODO: process parens/brackets/etc
-                print!("{}\n", group.delimiter().to_char(true));
-                output.extend(walk_token_stream(group.stream()));
-                print!("{}\n", group.delimiter().to_char(false));
-            }
-            TokenTree::Ident(ident) => print!("{} ", ident.to_string()),
-            TokenTree::Punct(punct) => match punct.as_char() {
-                ';' => println!(";"),
-                ',' => println!(","),
-                _ => print!("{}", punct.as_char()),
-            },
-            TokenTree::Literal(lit) => print!("'{}'", lit.to_string()),
-        }
-    }
-    Ok(output)
 }
 
 #[test]
