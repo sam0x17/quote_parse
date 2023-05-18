@@ -1,8 +1,8 @@
 use proc_macro::TokenStream;
-use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
+use proc_macro2::{Delimiter, Group, Literal, Punct, TokenStream as TokenStream2, TokenTree};
 use quote::quote;
 use syn::{
-    parse::{Parse, ParseStream},
+    parse::{Nothing, Parse, ParseStream},
     parse2, Ident, Result, Token, Visibility,
 };
 
@@ -15,7 +15,7 @@ pub fn quote_parse(tokens: TokenStream) -> TokenStream {
 }
 
 /*
-quote_parse!(pub MyThing,
+quote_parse!(MyThing,
     struct $ident {
         $field1: ${type1 as TypePath},
         $field2: ${type2 as TypePath}
@@ -75,9 +75,64 @@ impl ToChar for Delimiter {
     }
 }
 
+enum TokenW {
+    Group(Delimiter, Group),
+    Ident(Ident),
+    Punct(char, Punct),
+    Lit(String, Literal),
+}
+
+impl From<&TokenTree> for TokenW {
+    fn from(value: &TokenTree) -> Self {
+        match value {
+            TokenTree::Group(group) => TokenW::Group(group.delimiter(), group.clone()),
+            TokenTree::Ident(ident) => TokenW::Ident(ident.clone()),
+            TokenTree::Punct(punct) => TokenW::Punct(punct.as_char(), punct.clone()),
+            TokenTree::Literal(lit) => TokenW::Lit(lit.to_string(), lit.clone()),
+        }
+    }
+}
+
+impl TokenW {
+    fn from_opt(tt: Option<&TokenTree>) -> Option<TokenW> {
+        match tt {
+            Some(tt) => Some(TokenW::from(tt)),
+            None => None,
+        }
+    }
+}
+
 fn walk_token_stream(tokens: TokenStream2) -> Result<TokenStream2> {
     let mut output: TokenStream2 = TokenStream2::new();
-    for token in tokens {
+    let mut tokens = tokens.into_iter().collect::<Vec<TokenTree>>();
+    tokens.reverse();
+    let mut i = 0;
+    while {
+        i += 1;
+        !tokens.is_empty()
+    } {
+        let token = tokens.pop();
+        let (peek1, peek2) = (
+            TokenW::from_opt(tokens.get(tokens.len() - 1 - 1)),
+            TokenW::from_opt(tokens.get(tokens.len() - 1 - 2)),
+        );
+        match (peek1, peek2) {
+            (Some(TokenW::Punct('$', _)), Some(TokenW::Ident(_))) => {
+                // $ident
+            }
+            (Some(TokenW::Punct('$', _)), Some(TokenW::Group(Delimiter::Brace, _))) => {
+                // ${ident}
+            }
+            (_, _) => (),
+        }
+    }
+    for (i, token) in tokens.iter().enumerate() {
+        let (peek1, peek2, peek3, peek4) = (
+            tokens.get(i + 1),
+            tokens.get(i + 2),
+            tokens.get(i + 3),
+            tokens.get(i + 4),
+        );
         match token {
             TokenTree::Group(group) => {
                 // TODO: process parens/brackets/etc
