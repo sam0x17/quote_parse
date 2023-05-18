@@ -1,12 +1,12 @@
 use proc_macro::TokenStream;
-use proc_macro2::{Delimiter, Group, Literal, Punct, TokenStream as TokenStream2, TokenTree};
+use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
     braced,
-    parse::{Nothing, Parse, ParseStream},
+    parse::{Parse, ParseStream},
     parse2,
     token::Brace,
-    Error, Ident, Result, Token, Type, Visibility,
+    Ident, Result, Token, Type, Visibility,
 };
 
 #[proc_macro]
@@ -93,12 +93,12 @@ impl Parse for Walker {
                         print!("ident var: {}", ident.to_string());
                         continue;
                     } else if input.peek(Brace) {
-                        // #{Type as ident}
+                        // #{ident as Type}
                         let content;
                         braced!(content in input);
-                        let typ = content.parse::<Type>()?;
-                        content.parse::<Token![as]>()?;
                         let ident = content.parse::<Ident>()?;
+                        content.parse::<Token![as]>()?;
+                        let typ = content.parse::<Type>()?;
                         print!(
                             "typed var: {} as {}",
                             typ.to_token_stream().to_string(),
