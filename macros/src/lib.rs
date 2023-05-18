@@ -1,7 +1,10 @@
 use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::quote;
-use syn::Result;
+use syn::{
+    parse::{Parse, ParseStream},
+    parse2, Ident, Result, Token,
+};
 
 #[proc_macro]
 pub fn quote_parse(tokens: TokenStream) -> TokenStream {
@@ -11,9 +14,45 @@ pub fn quote_parse(tokens: TokenStream) -> TokenStream {
     }
 }
 
+/*
+quote_parse!(MyThing,
+    struct $ident {
+        $field1: ${type1 as TypePath},
+        $field2: ${type2 as TypePath}
+    }
+);
+*/
+
+struct QuoteParseArgs {
+    ident: Ident,
+    _comma: Token![,],
+    stream: TokenStream2,
+}
+
+impl Parse for QuoteParseArgs {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(QuoteParseArgs {
+            ident: input.parse()?,
+            _comma: input.parse()?,
+            stream: {
+                let mut stream: TokenStream2 = TokenStream2::new();
+                while let Ok(token) = input.parse::<TokenTree>() {
+                    stream.extend(TokenStream2::from(token));
+                }
+                stream
+            },
+        })
+    }
+}
+
 fn quote_parse_internal(tokens: impl Into<TokenStream2>) -> Result<TokenStream2> {
-    let tokens = tokens.into();
-    walk_token_stream(tokens)
+    let args = parse2::<QuoteParseArgs>(tokens.into())?;
+    let struct_contents = walk_token_stream(args.stream)?;
+    Ok(quote! {
+        struct ParsedThing {
+            #struct_contents
+        }
+    })
 }
 
 trait ToChar {
@@ -59,6 +98,7 @@ fn walk_token_stream(tokens: TokenStream2) -> Result<TokenStream2> {
 #[test]
 fn test_quote_parse_internal() {
     quote_parse_internal(quote! {
+        MyThing,
         struct Something {
             field1: u32,
             field2: u32,
