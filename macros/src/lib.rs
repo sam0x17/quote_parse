@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use proc_macro2::{TokenStream as TokenStream2, TokenTree};
+use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::quote;
 use syn::Result;
 
@@ -13,15 +13,47 @@ pub fn quote_parse(tokens: TokenStream) -> TokenStream {
 
 fn quote_parse_internal(tokens: impl Into<TokenStream2>) -> Result<TokenStream2> {
     let tokens = tokens.into();
-    for token in tokens {
-        match token {
-            TokenTree::Group(group) => println!("{:?}..{:?}", group.delimiter(), group.delimiter()),
-            TokenTree::Ident(ident) => println!("{}", ident.to_string()),
-            TokenTree::Punct(punct) => println!("{}", punct.as_char()),
-            TokenTree::Literal(lit) => println!("{}", lit.to_string()),
+    walk_token_stream(tokens)
+}
+
+trait ToChar {
+    fn to_char(&self, open: bool) -> char;
+}
+
+impl ToChar for Delimiter {
+    fn to_char(&self, open: bool) -> char {
+        match (self, open) {
+            (Delimiter::Parenthesis, true) => '(',
+            (Delimiter::Parenthesis, false) => ')',
+            (Delimiter::Brace, true) => '{',
+            (Delimiter::Brace, false) => '}',
+            (Delimiter::Bracket, true) => '[',
+            (Delimiter::Bracket, false) => ']',
+            (Delimiter::None, _) => ' ',
         }
     }
-    Ok(quote!())
+}
+
+fn walk_token_stream(tokens: TokenStream2) -> Result<TokenStream2> {
+    let mut output: TokenStream2 = TokenStream2::new();
+    for token in tokens {
+        match token {
+            TokenTree::Group(group) => {
+                // TODO: process parens/brackets/etc
+                print!("{}\n", group.delimiter().to_char(true));
+                output.extend(walk_token_stream(group.stream()));
+                print!("{}\n", group.delimiter().to_char(false));
+            }
+            TokenTree::Ident(ident) => print!("{} ", ident.to_string()),
+            TokenTree::Punct(punct) => match punct.as_char() {
+                ';' => println!(";"),
+                ',' => println!(","),
+                _ => print!("{}", punct.as_char()),
+            },
+            TokenTree::Literal(lit) => print!("'{}'", lit.to_string()),
+        }
+    }
+    Ok(output)
 }
 
 #[test]
