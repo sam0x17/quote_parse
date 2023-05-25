@@ -119,10 +119,7 @@ impl Parse for Walker {
                                     // output.extend(quote!(if));
                                     // TODO: filter _parser into proper parser variable in expr
                                     let expr = input.parse::<Expr>()?.to_token_stream();
-                                    println!(
-                                        "{} {{",
-                                        quote!(if #expr).to_token_stream().to_string()
-                                    );
+                                    println!("if {} {{", expr.to_token_stream().to_string());
                                     // output.extend(expr);
                                     let content;
                                     braced!(content in input);
@@ -139,6 +136,7 @@ impl Parse for Walker {
                                 }
                                 if input.peek(Token![else]) {
                                     input.parse::<Token![else]>()?;
+                                    println!("else");
                                 } else {
                                     break;
                                 }

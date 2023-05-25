@@ -26,9 +26,9 @@ quote_parse!(MyThing,
     // the magic variable `_parser` can be used to dispatch methods to the underlying `ParseStream`
     #? if _parser.peek(Ident) {
         #{goodbye: Option<keywords::goodbye>}
-    } // else if _parser.peek(LitStr) {
-    //     "this goes at the end"
-    // } else {
-    //     ;
-    // }
+    } else if _parser.peek(LitStr) {
+        "this goes at the end"
+    } else {
+        ;
+    }
 );
