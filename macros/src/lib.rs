@@ -2,11 +2,11 @@ use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
-    braced,
+    braced, parenthesized,
     parse::{Parse, ParseStream},
     parse2,
     token::Brace,
-    Ident, Result, Token, Type, Visibility,
+    Expr, Ident, Result, Stmt, Token, Type, Visibility,
 };
 
 #[proc_macro]
@@ -53,11 +53,13 @@ impl Parse for QuoteParseArgs {
 fn quote_parse_internal(tokens: impl Into<TokenStream2>) -> Result<TokenStream2> {
     let args = parse2::<QuoteParseArgs>(tokens.into())?;
     let struct_contents = walk_token_stream(args.stream)?;
-    Ok(quote! {
+    let output = quote! {
         struct ParsedThing {
             #struct_contents
         }
-    })
+    };
+    println!("output:\n{}", output);
+    Ok(output)
 }
 
 trait ToChar {
@@ -86,11 +88,12 @@ impl Parse for Walker {
         while !input.is_empty() {
             let token = input.parse::<TokenTree>()?;
             if let TokenTree::Punct(t) = &token {
+                // commands
                 if t.as_char() == '#' {
                     if input.peek(Ident) {
                         // #ident
                         let ident = input.parse::<Ident>()?;
-                        print!("ident var: {}", ident.to_string());
+                        println!("ident var: {} ", ident.to_string());
                         continue;
                     } else if input.peek(Brace) {
                         // #{ident as Type}
@@ -99,11 +102,50 @@ impl Parse for Walker {
                         let ident = content.parse::<Ident>()?;
                         content.parse::<Token![:]>()?;
                         let typ = content.parse::<Type>()?;
-                        print!(
-                            "typed var: {}: {}",
+                        println!(
+                            "typed var: {}: {} ",
                             ident.to_string(),
                             typ.to_token_stream().to_string(),
                         );
+                        continue;
+                    } else if input.peek(Token![?]) {
+                        // #? [conditional]
+                        input.parse::<Token![?]>()?;
+                        if input.peek(Token![if]) {
+                            // if chain
+                            loop {
+                                if input.peek(Token![if]) {
+                                    input.parse::<Token![if]>()?;
+                                    // output.extend(quote!(if));
+                                    // TODO: filter _parser into proper parser variable in expr
+                                    let expr = input.parse::<Expr>()?.to_token_stream();
+                                    println!(
+                                        "{} {{",
+                                        quote!(if #expr).to_token_stream().to_string()
+                                    );
+                                    // output.extend(expr);
+                                    let content;
+                                    braced!(content in input);
+                                    let mut body = TokenStream2::new();
+                                    // TODO: filter _parser into proper parser variable in body
+                                    while !content.is_empty() {
+                                        body.extend(
+                                            content.parse::<TokenTree>()?.to_token_stream(),
+                                        );
+                                    }
+                                    let body = walk_token_stream(body)?;
+                                    println!("}}");
+                                    // output.extend(quote!({#body}));
+                                }
+                                if input.peek(Token![else]) {
+                                    input.parse::<Token![else]>()?;
+                                } else {
+                                    break;
+                                }
+                            }
+                        } else {
+                            // match expression
+                        }
                         continue;
                     }
                 }
@@ -111,17 +153,17 @@ impl Parse for Walker {
             match token {
                 TokenTree::Group(group) => {
                     // TODO: process parens/brackets/etc
-                    print!("{}\n", group.delimiter().to_char(true));
+                    //print!("{}\n", group.delimiter().to_char(true));
                     output.extend(walk_token_stream(group.stream()));
-                    print!("{}\n", group.delimiter().to_char(false));
+                    //print!("{}\n", group.delimiter().to_char(false));
                 }
-                TokenTree::Ident(ident) => print!("{} ", ident.to_string()),
+                TokenTree::Ident(_ident) => (), //print!("{} ", ident.to_string()),
                 TokenTree::Punct(punct) => match punct.as_char() {
-                    ';' => println!(";"),
-                    ',' => println!(","),
-                    _ => print!("{}", punct.as_char()),
+                    ';' => (), //println!(";"),
+                    ',' => (), //println!(","),
+                    _ => (),   //print!("{}", punct.as_char()),
                 },
-                TokenTree::Literal(lit) => print!("'{}'", lit.to_string()),
+                TokenTree::Literal(_lit) => (), //print!("'{}'", lit.to_string()),
             }
         }
         Ok(Walker(output))

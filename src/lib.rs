@@ -14,17 +14,21 @@ quote_parse!(MyThing,
         // generated as Option fields
         // #?{..} is optional
         #!{#field2: #{field2_type: Type} #?{field2_comma: Token![,]}} // note this comma is optional, but field3 will only be parsed if this particular comma is present
-        #? if field2_comma.is_some() {
-            // conditional branches have the same behavior as #?{..} in terms of tokens being auto-optioned
-            #field3: #{field3_type: Type}
-        } else {
-            // if field2 is missing, we parse this `fixed2` as the 4th field
-            fixed2: #{fixed2_type: TypePath}
-        }
+        // #? if field2_comma.is_some() {
+        //     // conditional branches have the same behavior as #?{..} in terms of tokens being auto-optioned
+        //     #field3: #{field3_type: Type}
+        // } else {
+        //     // if field2 is missing, we parse this `fixed2` as the 4th field
+        //     fixed2: #{fixed2_type: TypePath}
+        // }
     }
 
-    // the magic variable `$parser` can be used to dispatch methods to the underlying `ParseStream`
-    #? if $parser.peek(Ident) {
+    // the magic variable `_parser` can be used to dispatch methods to the underlying `ParseStream`
+    #? if _parser.peek(Ident) {
         #{goodbye: Option<keywords::goodbye>}
-    }
+    } // else if _parser.peek(LitStr) {
+    //     "this goes at the end"
+    // } else {
+    //     ;
+    // }
 );
