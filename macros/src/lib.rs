@@ -3,10 +3,10 @@ use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
     braced, parenthesized,
-    parse::{Parse, ParseStream},
+    parse::{Nothing, Parse, ParseStream},
     parse2,
     token::Brace,
-    Expr, Ident, Result, Stmt, Token, Type, Visibility,
+    Error, Expr, Ident, Result, Stmt, Token, Type, Visibility,
 };
 
 #[proc_macro]
@@ -53,8 +53,9 @@ impl Parse for QuoteParseArgs {
 fn quote_parse_internal(tokens: impl Into<TokenStream2>) -> Result<TokenStream2> {
     let args = parse2::<QuoteParseArgs>(tokens.into())?;
     let struct_contents = walk_token_stream(args.stream)?;
+    let struct_name = args.ident;
     let output = quote! {
-        struct ParsedThing {
+        struct #struct_name {
             #struct_contents
         }
     };
@@ -109,9 +110,37 @@ impl Parse for Walker {
                         );
                         continue;
                     } else if input.peek(Token![?]) {
-                        // #? [conditional]
+                        // #? ...
                         input.parse::<Token![?]>()?;
-                        if input.peek(Token![if]) {
+                        if input.peek(Ident) {
+                            // #?ident
+                            let ident = input.parse::<Ident>()?;
+                            println!("Option<ident> var: {} ", ident.to_string());
+                            continue;
+                        } else if input.peek(Brace) {
+                            // #?{..}
+                            let content;
+                            braced!(content in input);
+                            let ident = content.parse::<Ident>()?;
+                            content.parse::<Token![:]>()?;
+                            let typ = content.parse::<Type>()?;
+                            println!(
+                                "optional typed var: {}: {} ",
+                                ident.to_string(),
+                                typ.to_token_stream().to_string(),
+                            );
+                            if content.peek(Token![,]) {
+                                // , ..
+                                content.parse::<Token![,]>()?;
+                                if content.peek(Token![if]) {
+                                    // if: ..
+                                    content.parse::<Token![if]>()?;
+                                    content.parse::<Token![:]>()?;
+                                    let expr = content.parse::<Expr>()?;
+                                    content.parse::<Nothing>()?;
+                                }
+                            }
+                        } else if input.peek(Token![if]) {
                             // if chain
                             loop {
                                 if input.peek(Token![if]) {
@@ -142,7 +171,10 @@ impl Parse for Walker {
                                 }
                             }
                         } else {
-                            // match expression
+                            return Err(Error::new(
+                                input.span(),
+                                "Expected `ident`, `{`, or `if`.",
+                            ));
                         }
                         continue;
                     }
