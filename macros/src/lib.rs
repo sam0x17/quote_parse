@@ -1,14 +1,12 @@
-use std::rc::Rc;
-
 use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
-    braced, bracketed, parenthesized,
+    braced, bracketed,
     parse::{Nothing, Parse, ParseBuffer, ParseStream},
     parse2, parse_quote,
     token::{Brace, Bracket},
-    Error, Expr, Ident, Result, Stmt, Token, Type, Visibility,
+    Error, Expr, Ident, Result, Token, Type, Visibility,
 };
 
 #[proc_macro]
@@ -18,15 +16,6 @@ pub fn quote_parse(tokens: TokenStream) -> TokenStream {
         Err(err) => err.to_compile_error().into(),
     }
 }
-
-/*
-quote_parse!(MyThing,
-    struct #ident {
-        #field1: #{type1 as TypePath},
-        #field2: #{type2 as TypePath}
-    }
-);
-*/
 
 struct QuoteParseArgs {
     viz: Visibility,
@@ -41,13 +30,7 @@ impl Parse for QuoteParseArgs {
             viz: input.parse()?,
             ident: input.parse()?,
             _comma: input.parse()?,
-            stream: {
-                let mut stream: TokenStream2 = TokenStream2::new();
-                while let Ok(token) = input.parse::<TokenTree>() {
-                    stream.extend(TokenStream2::from(token));
-                }
-                stream
-            },
+            stream: input.to_token_stream()?,
         })
     }
 }

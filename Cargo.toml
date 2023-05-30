@@ -12,3 +12,6 @@ license = "MIT"
 
 [dependencies]
 quote_parse_macros = { version = "0.1.0", path = "macros" }
+syn = { version = "2", features = ["full"] }
+quote = "1"
+proc-macro2 = "1"
