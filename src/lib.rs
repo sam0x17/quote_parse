@@ -1,7 +1,14 @@
 use quote::ToTokens;
+use syn::parse::Parse;
+
 pub use quote_parse_macros::*;
 
-use syn::parse::Parse;
+#[doc(hidden)]
+pub mod __private {
+    pub use proc_macro2::TokenStream as TokenStream2;
+    pub use quote;
+    pub use syn;
+}
 
 pub struct ParseVec<T>(Vec<T>);
 
