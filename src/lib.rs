@@ -1,16 +1,13 @@
 pub use quote_parse_macros::*;
 
-quote_parse!(ForwardTokensArgs,
-    #{path: Path},
-    #{target: Path}#?{_comma2: Token![,]}
-    #? if comma2.is_some() { #{mm_path: Path} }
-    #? if mm_path.is_some() { #{_comma3: Token![,]} }
-    #? if comma3.is_some() { #{extra: LitStr} }
+quote_parse!(FunctionDef,
+    #{vis: Visibility} fn #ident(#args) #?[-> #{return_type: TypePath}] {
+        #{stmts: Vec<Stmt>}
+    }
 );
-
 // new style:
 
-quote_parse!(ForwardTokensArgs2,
+quote_parse!(ForwardTokensArgs,
     #some_ident,
     #?some_other_ident,
     /// docs about `path`

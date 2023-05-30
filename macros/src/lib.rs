@@ -2,10 +2,10 @@ use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
-    braced, parenthesized,
-    parse::{Nothing, Parse, ParseStream},
+    braced, bracketed, parenthesized,
+    parse::{Nothing, Parse, ParseBuffer, ParseStream},
     parse2,
-    token::Brace,
+    token::{Brace, Bracket},
     Error, Expr, Ident, Result, Stmt, Token, Type, Visibility,
 };
 
@@ -81,6 +81,20 @@ impl ToChar for Delimiter {
     }
 }
 
+trait ToTokenStream {
+    fn to_token_stream(&self) -> Result<TokenStream2>;
+}
+
+impl ToTokenStream for ParseBuffer<'_> {
+    fn to_token_stream(&self) -> Result<TokenStream2> {
+        let mut contents = TokenStream2::new();
+        while !self.is_empty() {
+            contents.extend(self.parse::<TokenTree>()?.to_token_stream());
+        }
+        Ok(contents)
+    }
+}
+
 struct Walker(TokenStream2);
 
 impl Parse for Walker {
@@ -119,6 +133,7 @@ impl Parse for Walker {
                             continue;
                         } else if input.peek(Brace) {
                             // #?{..}
+                            // everything inside is interpreted as a parsing field
                             let content;
                             braced!(content in input);
                             let ident = content.parse::<Ident>()?;
@@ -140,6 +155,16 @@ impl Parse for Walker {
                                     content.parse::<Nothing>()?;
                                 }
                             }
+                        } else if input.peek(Bracket) {
+                            // #?[..]
+                            // everything inside is interpreted as a recursive entrypoint
+                            // peeked off the first item. All items are created as Option
+                            // fields, however all are marked as required except those
+                            // explicitly marked as ? fields
+                            let content;
+                            bracketed!(content in input);
+                            let content = content.to_token_stream()?;
+                            let content = walk_token_stream(content)?;
                         } else if input.peek(Token![if]) {
                             // if chain
                             loop {
@@ -152,13 +177,8 @@ impl Parse for Walker {
                                     // output.extend(expr);
                                     let content;
                                     braced!(content in input);
-                                    let mut body = TokenStream2::new();
                                     // TODO: filter _parser into proper parser variable in body
-                                    while !content.is_empty() {
-                                        body.extend(
-                                            content.parse::<TokenTree>()?.to_token_stream(),
-                                        );
-                                    }
+                                    let body = content.to_token_stream()?;
                                     let body = walk_token_stream(body)?;
                                     println!("}}");
                                     // output.extend(quote!({#body}));
