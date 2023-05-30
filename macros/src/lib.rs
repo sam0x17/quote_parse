@@ -1,10 +1,12 @@
+use std::rc::Rc;
+
 use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Nothing, Parse, ParseBuffer, ParseStream},
-    parse2,
+    parse2, parse_quote,
     token::{Brace, Bracket},
     Error, Expr, Ident, Result, Stmt, Token, Type, Visibility,
 };
@@ -52,7 +54,7 @@ impl Parse for QuoteParseArgs {
 
 fn quote_parse_internal(tokens: impl Into<TokenStream2>) -> Result<TokenStream2> {
     let args = parse2::<QuoteParseArgs>(tokens.into())?;
-    let struct_contents = walk_token_stream(args.stream)?;
+    let struct_contents = walk_token_stream(&parse_quote!(input), args.stream)?;
     let struct_name = args.ident;
     let output = quote! {
         struct #struct_name {
@@ -99,6 +101,8 @@ struct Walker(TokenStream2);
 
 impl Parse for Walker {
     fn parse(input: ParseStream) -> Result<Self> {
+        let parser_ident = input.parse::<Ident>()?;
+        input.parse::<Token![,]>()?;
         let mut output: TokenStream2 = TokenStream2::new();
         while !input.is_empty() {
             let token = input.parse::<TokenTree>()?;
@@ -164,7 +168,7 @@ impl Parse for Walker {
                             let content;
                             bracketed!(content in input);
                             let content = content.to_token_stream()?;
-                            let content = walk_token_stream(content)?;
+                            let content = walk_token_stream(&parse_quote!(input), content)?;
                         } else if input.peek(Token![if]) {
                             // if chain
                             loop {
@@ -179,7 +183,7 @@ impl Parse for Walker {
                                     braced!(content in input);
                                     // TODO: filter _parser into proper parser variable in body
                                     let body = content.to_token_stream()?;
-                                    let body = walk_token_stream(body)?;
+                                    let body = walk_token_stream(&parse_quote!(input), body)?;
                                     println!("}}");
                                     // output.extend(quote!({#body}));
                                 }
@@ -204,7 +208,7 @@ impl Parse for Walker {
                 TokenTree::Group(group) => {
                     // TODO: process parens/brackets/etc
                     //print!("{}\n", group.delimiter().to_char(true));
-                    output.extend(walk_token_stream(group.stream()));
+                    output.extend(walk_token_stream(&parse_quote!(input), group.stream()));
                     //print!("{}\n", group.delimiter().to_char(false));
                 }
                 TokenTree::Ident(_ident) => (), //print!("{} ", ident.to_string()),
@@ -220,8 +224,8 @@ impl Parse for Walker {
     }
 }
 
-fn walk_token_stream(tokens: TokenStream2) -> Result<TokenStream2> {
-    match parse2::<Walker>(tokens) {
+fn walk_token_stream(parser_ident: &Ident, tokens: TokenStream2) -> Result<TokenStream2> {
+    match parse2::<Walker>(quote!(#parser_ident, #tokens)) {
         Ok(walker) => Ok(walker.0),
         Err(err) => Err(err),
     }
