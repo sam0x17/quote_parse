@@ -2,10 +2,10 @@ use proc_macro::TokenStream;
 use proc_macro2::{Delimiter, TokenStream as TokenStream2, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
-    braced, bracketed,
+    braced, bracketed, parenthesized,
     parse::{Nothing, Parse, ParseBuffer, ParseStream},
     parse2, parse_quote,
-    token::{Brace, Bracket},
+    token::{Brace, Bracket, Paren},
     Error, Expr, Ident, Result, Token, Type, Visibility,
 };
 
@@ -110,6 +110,18 @@ impl Parse for Walker {
                             typ.to_token_stream().to_string(),
                         );
                         continue;
+                    } else if input.peek(Paren) {
+                        // #(#{var})*
+                        let content;
+                        parenthesized!(content in input);
+                        while !content.is_empty() {
+                            if content.peek(Token![#]) {
+                                // the interpolation variable
+                                content.parse::<Token![#]>()?;
+                                // TODO: we need to break up into methods to do this properly
+                            }
+                            let _token = content.parse::<TokenTree>()?;
+                        }
                     } else if input.peek(Token![?]) {
                         // #? ...
                         input.parse::<Token![?]>()?;

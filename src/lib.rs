@@ -62,7 +62,7 @@ fn test_parse_vec() {
 }
 
 quote_parse!(FunctionDef,
-    #{vis: Visibility} fn #ident(#args) #?[-> #{return_type: TypePath}] {
+    #{vis: Visibility} fn #ident #?[<#{generics: Generics}>](#{args: Punctuated<FnArg, Comma>}) #?[-> #{return_type: TypePath}] {
         #{stmts: Vec<Stmt>}
     }
 );
