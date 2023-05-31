@@ -82,10 +82,32 @@ impl ToTokenStream for ParseBuffer<'_> {
 
 struct Walker(TokenStream2);
 
-impl Parse for Walker {
+struct ParseState {
+    parser_ident: Ident,
+}
+
+impl Parse for ParseState {
     fn parse(input: ParseStream) -> Result<Self> {
         let parser_ident = input.parse::<Ident>()?;
         input.parse::<Token![,]>()?;
+        Ok(ParseState { parser_ident })
+    }
+}
+
+/// Parses `#ident`
+fn parse_ident_var(
+    input: &ParseStream,
+    _output: &mut TokenStream2,
+    _state: &mut ParseState,
+) -> Result<Ident> {
+    let ident = input.parse::<Ident>()?;
+    println!("ident var: {} ", ident.to_string());
+    Ok(ident)
+}
+
+impl Parse for Walker {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let mut state = input.parse::<ParseState>()?;
         let mut output: TokenStream2 = TokenStream2::new();
         while !input.is_empty() {
             let token = input.parse::<TokenTree>()?;
@@ -94,8 +116,7 @@ impl Parse for Walker {
                 if t.as_char() == '#' {
                     if input.peek(Ident) {
                         // #ident
-                        let ident = input.parse::<Ident>()?;
-                        println!("ident var: {} ", ident.to_string());
+                        parse_ident_var(&input, &mut output, &mut state)?;
                         continue;
                     } else if input.peek(Brace) {
                         // #{ident as Type}
@@ -122,6 +143,7 @@ impl Parse for Walker {
                             }
                             let _token = content.parse::<TokenTree>()?;
                         }
+                        continue;
                     } else if input.peek(Token![?]) {
                         // #? ...
                         input.parse::<Token![?]>()?;
